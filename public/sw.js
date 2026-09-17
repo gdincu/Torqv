@@ -3,9 +3,9 @@
  * - Navigations: network-first, fallback to cached index.html.
  * - Map tiles: runtime cache-first with a cap (never precached).
  */
-const VERSION = 'tqv2-v1';
-const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './favicon.svg'];
-const TILE_HOSTS = ['demotiles.maplibre.org', 'tile.openstreetmap.org'];
+const VERSION = 'tqv2-v2';
+const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './favicon.svg', './car-default.png'];
+const TILE_HOSTS = ['tiles.openfreemap.org', 'tile.openstreetmap.org'];
 const TILE_CACHE = 'tqv2-tiles';
 const MAX_TILES = 300;
 

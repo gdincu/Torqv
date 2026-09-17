@@ -1,122 +1,152 @@
-# Torque Pro Visualizer — PWA rewrite (v2)
+# Torqv
 
-GPU-accelerated, installable visualizer for Torque Pro logs. Runs on a phone
-or an old PC from one codebase. Files never leave the device — everything is
-parsed and rendered locally.
+Torqv is an installable web app (phone + desktop) that replays Torque Pro
+trip logs on an interactive map: watch the car drive the logged route while
+speed, consumption, fuel, temperature, and drive/idle stats update live.
 
-This is a full rewrite of `../TorqueProVisualizer` (PHP + GD + ffmpeg batch
-renderer). See **Migration table** below for what moved where.
+Everything runs locally in the browser — log files never leave the device.
+
+## Features
+
+- **Trip playback on a real map** — GPU-rendered OpenStreetMap-based vector
+  map (OpenFreeMap, no API key), with an OSM raster fallback when offline.
+- **Live dashboard (OSD)** — speed, instant consumption, fuel level, outside
+  temperature, drive/idle timers, and the log timestamp.
+- **Transport controls** — play/pause, scrub through the trip, playback speed
+  `1–30×` (default `7×`).
+- **Trip stats** — point count, duration, distance, and drive/idle split.
+- **Custom car marker** — a bundled default car icon plus transparent-PNG
+  upload (drawn upright, stored in the browser only).
+- **Video export** — record the playback to `.webm` / `.mp4` and download it.
+- **Installable PWA** — Add to Home Screen / Install; the app shell works
+  offline and viewed map tiles are cached on-device.
+- **Demo included** — 300 bundled points via **Load demo**, no file needed.
+
+## Log format
+
+Open a Torque Pro JSON export. Both shapes parse:
+
+- a valid JSON array of objects, or
+- concatenated `{...},{...},` objects (auto-wrapped into an array).
+
+Recognized fields per row (unknown fields are ignored):
+
+| Field | Meaning |
+|---|---|
+| `currTime` (or `time`, `timestamp`) | Unix seconds. Required — rows without it are skipped. |
+| `lat` (or `latitude`), `lon` (or `lng`, `longitude`) | Position. `lat: -1` marks a gap (no fix) and breaks the track line. |
+| `speedKmh` | Speed in km/h. `speedKmhGPS`, when present, wins. |
+| `odoKm` | Odometer in km. The `16777210` sentinel means “unknown” and carries the last known value forward. |
+| `instCon` | Instant consumption shown in the OSD. |
+| `outC` (or `temp`, `outsideTemp`) | Outside temperature in °C. |
+| `FuelPct` (or `fuel`, `fuelPct`) | Fuel level in %. |
+| `CarId` (or `carId`, `car`) | Colors the track: `elantra_red_r` → blue, `elantra_red_l` → red, anything else → green. |
+
+Rows out of order are sorted by timestamp (with a warning).
+
+## Usage
+
+1. **Open log** — pick a Torque Pro JSON export, or **Load demo** to try it.
+2. Press **Play**; drag the scrub bar or change **Speedup** anytime.
+3. Toggles: **Follow car** (smooth pan), **Dark map**, **Show OSD bar**. Zoom with `+`/`−`.
+4. **Car marker** — **Upload** a transparent PNG to replace the car icon, or
+   **Default** to restore the bundled one. The icon is drawn upright (it does
+   not rotate with heading) and is kept in the browser only.
+5. **Record** — captures the playback in realtime → **Download** the video
+   (`.webm` on Chrome/Edge/Firefox, `.mp4` where Safari supports it).
+
+Optional desktop 4K from a recording:
+
+```powershell
+ffmpeg -i torque-trip.webm -pix_fmt yuv420p -c:v libx264 -crf 18 -vf scale=3840:2160 final_4K.mp4
+```
+
+## Drive / idle stats
+
+- Speed above `1 km/h` counts as driving, otherwise idle.
+- Segments separated by a time gap over `60 s` are credited up to the last
+  row before the gap; the trailing segment is credited to the current mode.
+- Rows with `odoKm` or `instCon` of `-1` are skipped for stats.
 
 ## Architecture
 
 ```
 index.html                  app shell (mobile-first, installable)
-manifest.webmanifest        PWA manifest (standalone, icons)
-public/sw.js                hand-rolled SW: app-shell offline + tile runtime cache
-src/main.ts                 UI wiring: file/demo loading, transport, OSD, export
+public/manifest.webmanifest PWA manifest (standalone, icons)
+public/sw.js                service worker: offline app shell + map-tile cache
+public/car-default.png      bundled default car marker
+public/demo_sample.json     bundled 300-point demo trip
+src/main.ts                 UI wiring: loading, transport, OSD, export, car icon
 src/core/
-  types.ts                  TorqueRow / TripInfo / OsdSnapshot (canonical schema)
-  parser.ts                 tolerant log parser (valid array OR legacy
-                            concatenated {...},{...}, + GPS-speed override,
-                            odo-sentinel carry-forward)
-  stats.ts                  O(N) prefix port of LiveData.php (drive/idle split)
-  playback.ts               rAF engine: wallClock × speedup → binary search +
-                            lat/lon interpolation (smooth at any refresh rate)
-  geo.ts                    slippy-map math port of global.php + haversine
-  format.ts                 formatHourMin + UTC date (gmdate parity)
+  types.ts                  TorqueRow / TripInfo / OsdSnapshot
+  parser.ts                 tolerant log parser (array or concatenated objects,
+                            GPS-speed override, odometer sentinel handling)
+  stats.ts                  single-pass drive/idle + distance accumulators
+  playback.ts               rAF engine: wall clock × speedup → binary search +
+                            lat/lon interpolation
+  geo.ts                    slippy-map math + haversine distance
+  format.ts                 duration, speed, consumption, and UTC date labels
 src/map/
-  style.ts                  keyless vector style + OSM raster fallback
+  style.ts                  OpenFreeMap vector styles (light/dark) + OSM raster fallback
   mapAdapter.ts             MapLibre GL wrapper + smooth follow-car viewport
 src/overlay/
-  trackRenderer.ts          Canvas overlay: CarId-colored track, vector car
-                            marker with heading, trip label
+  trackRenderer.ts          canvas overlay: CarId-colored track, PNG car sprite
+                            (upright) with vector fallback, trip label
 src/export/
   recorder.ts               realtime composite (map + overlay + OSD) →
-                            MediaRecorder (WebM/MP4 by browser support)
-src/pwa.ts                  SW registration + install prompt
+                            MediaRecorder video
+src/pwa.ts                  service-worker registration + install prompt
 ```
 
-### Data flow
+Data flow:
 
-`log file → parser → rows → computePrefixStats (1×, O(N)) → PlaybackEngine
-→ per frame: MapLibre GPU basemap + Canvas overlay + DOM OSD → optional
-MediaRecorder composite export`
+`log file → parser → rows → prefix stats (1×) → playback engine
+→ per frame: MapLibre basemap + canvas overlay + DOM OSD → optional
+MediaRecorder export`
 
-The legacy renderer re-scanned rows `0..frame` for **every** frame (O(N²))
-on the CPU with GD. Here statistics are precomputed once; each frame is a
-binary search + interpolation, and the map is drawn by the GPU — this is the
-part that makes a phone faster than the old PC.
-
-## Migration table (v1 → v2)
-
-| v1 | v2 | Notes |
-|---|---|---|
-| `index.php` `EvDashboardOverview` | `src/main.ts` + `src/overlay/trackRenderer.ts` + `src/map/mapAdapter.ts` | same OSD fields, same follow behavior |
-| `LiveData.php` mode `>1 km/h → drive` | `src/core/stats.ts` | identical rules incl. 60 s gap + trailing flush; O(N) prefix instead of O(N²) |
-| `global.php` tile math | `src/core/geo.ts` | same formulas; tile *fetching* deleted — GPU vector tiles instead |
-| `global.php:80 fetchTile` OSM scrape | `src/map/style.ts` | `demotiles` vector tiles; raster OSM fallback, both attributed |
-| `GenerateVideo.bat` mjpeg → 4K mp4 | `src/export/recorder.ts` + command below | realtime WebM/MP4 in-browser; 4K via ffmpeg stays a desktop step |
-| `resources/*.png` car sprites | vector marker in `trackRenderer.ts` | heading-aware, resolution-independent |
-| `elantra_red_r → #1c4cbf`, `elantra_red_l → #ff7878`, else `#00cc66` | `TRACK_COLORS` / `TRACK_FALLBACK` | legacy quirk preserved on purpose |
-| `svggraph.php` | deleted | dead fork leftover (undefined `$data`, missing vendored lib) |
-
-## Deploy to GitHub Pages
-
-`.github/workflows/deploy-pages.yml` builds (`npm ci` + `npm run build`)
-and publishes `dist/` on every push to `main`. One-time setup:
-
-1. Create the repo on GitHub (without a README — this folder is the source).
-2. First push from here:
-   ```powershell
-   git init -b main
-   git add .
-   git commit -m "Torque Pro Visualizer PWA"
-   git remote add origin https://github.com/<you>/<repo>.git
-   git push -u origin main
-   ```
-3. Repo → Settings → Pages → Source: **GitHub Actions**.
-
-The site lands at `https://<you>.github.io/<repo>/`. The build uses
-relative paths (`base: './'` in `vite.config.ts`), so project subpaths,
-the service worker, and `demo_sample.json` all resolve correctly.
+Statistics are precomputed once per trip; each frame is a binary search plus
+interpolation, and the map itself is drawn by the GPU — that combination is
+what keeps playback smooth on phones.
 
 ## Develop / build / run
 
 ```powershell
 npm install
-npm run gen:icons    # PWA icons (zero-dep generator)
-npm run gen:sample   # public/demo_sample.json from the v1 demo log
 npm run dev          # http://localhost:5173
-npm run build        # tsc + vite build → dist/
-npm run preview      # serve the production build (SW active here, not in dev)
+npm run build        # type-check + production build → dist/
+npm run preview      # serve the production build (service worker active here, not in dev)
+npm test             # parser / stats / playback / formatting smoke tests
+npm run gen:icons    # regenerate the PWA icons (zero dependencies)
 ```
 
 Install on a phone: serve `dist/` over HTTPS (or `localhost` for testing),
 open it, then *Add to Home screen* / Install. Offline works for the app
 shell; map tiles are cached as you view them (capped at 300).
 
-## Usage
+## Deploy to GitHub Pages
 
-1. **Open log** — pick a Torque Pro JSON export (valid array *or* the legacy
-   concatenated format; both parse). Or **Load demo** for 300 bundled points.
-2. Transport: play/pause, scrub, speedup `1–30×` (`7×` matches the old default).
-3. Toggles: follow-car, dark map, OSD bar. Zoom `+`/`−`.
-4. **Record** → captures playback in realtime → **Download** (`.webm` on
-   Chrome/Edge/Firefox, `.mp4` where Safari supports it).
+`.github/workflows/deploy-pages.yml` builds (`npm ci` + `npm run build`)
+and publishes `dist/` on every push to `main`. One-time setup:
 
-Optional desktop 4K (unchanged from v1's second stage):
+1. Create the repo on GitHub.
+2. Push `main`.
+3. Repo → Settings → Pages → Source: **GitHub Actions**.
 
-```powershell
-ffmpeg -i torque-trip.webm -pix_fmt yuv420p -c:v libx264 -crf 18 -vf scale=3840:2160 final_4K.mp4
-```
+The site lands at `https://<you>.github.io/<repo>/`. The build uses
+relative paths (`base: './'` in `vite.config.ts`), so project subpaths,
+the service worker, and `demo_sample.json` all resolve correctly.
 
-## Known limits / roadmap
+## Privacy
 
-- Export is **realtime** (records while the trip plays). Faster-than-realtime
-  and true 4K in-browser need WebCodecs + ffmpeg.wasm or a Tauri wrapper
+Log files are parsed and rendered on-device. Nothing is uploaded anywhere.
+
+## Known limits
+
+- Export is **realtime** (it records while the trip plays). Faster-than-realtime
+  and true 4K in-browser need WebCodecs + ffmpeg.wasm or a native wrapper
   around the same UI with a bundled ffmpeg — the `core/` modules are already
   dependency-free so they can move verbatim.
-- The free `demotiles` style is for demo use; for heavy use point
-  `VECTOR_STYLE_URL` at your own tileserver / MapTiler key or a self-hosted
-  PMTiles file (then the map works fully offline).
-- Attribution: © OpenStreetMap contributors, © OpenMapTiles (shown in-app).
+- The free OpenFreeMap styles are fine for normal use; for heavy use point
+  `LIGHT_STYLE_URL` / `DARK_STYLE_URL` at your own tileserver / MapTiler key
+  or a self-hosted PMTiles file (then the map works fully offline).
+- Attribution: © OpenStreetMap contributors, styles © OpenFreeMap (shown in-app).

@@ -2,14 +2,15 @@ import type { TorqueRow } from '../core/types';
 import { headingDeg } from '../core/geo';
 
 /**
- * Canvas 2D overlay: track polyline + vector car marker + trip label.
+ * Canvas 2D overlay: track polyline + car marker + trip label.
  *
  * Legacy parity (`index.php:151-186`):
  * - segment color by CarId: `elantra_red_r` -> blue, `elantra_red_l` ->
  *   red, anything else -> green (the legacy quirk is kept so old logs
  *   look identical; see README migration table)
- * - PNG sprites (`resources/*.png`) are replaced by a resolution-
- *   independent vector marker with heading — no per-car assets needed
+ *
+ * Car marker: a user-supplied/default PNG sprite drawn upright
+ * (no rotation) when available, otherwise a built-in vector marker.
  */
 export const TRACK_COLORS: Record<string, string> = {
   elantra_red_r: '#1c4cbf',
@@ -26,12 +27,18 @@ export type Projector = (lon: number, lat: number) => { x: number; y: number };
 export class TrackRenderer {
   readonly canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  /** Custom/default car sprite. Drawn upright (no rotation) when set + loaded. */
+  private carSprite: HTMLImageElement | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D canvas not supported.');
     this.ctx = ctx;
+  }
+
+  setCarSprite(img: HTMLImageElement | null): void {
+    this.carSprite = img;
   }
 
   /** Size the backing store to the displayed size × devicePixelRatio. */
@@ -106,12 +113,14 @@ export class TrackRenderer {
     if (penDown) ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Car marker.
-    const anchor = rows[end];
-    const ref = anchor && anchor.lat !== -1 ? anchor : null;
-    const hd = ref ? headingDeg(ref.lat, ref.lon, car.lat, car.lon) || headingDegOf(rows, end) : 0;
+    // Car marker: sprite (upright, no rotation) when available, else vector.
     const cp = project(car.lon, car.lat);
-    this.drawCar(cp.x, cp.y, hd, dark);
+    if (!this.drawCarSprite(cp.x, cp.y)) {
+      const anchor = rows[end];
+      const ref = anchor && anchor.lat !== -1 ? anchor : null;
+      const hd = ref ? headingDeg(ref.lat, ref.lon, car.lat, car.lon) || headingDegOf(rows, end) : 0;
+      this.drawCar(cp.x, cp.y, hd, dark);
+    }
 
     // Trip label under the car (legacy `%0.0fkm` red text).
     ctx.font = '600 15px system-ui, sans-serif';
@@ -121,6 +130,27 @@ export class TrackRenderer {
     ctx.strokeText(tripLabel, cp.x, cp.y + 34);
     ctx.fillStyle = '#e5484d';
     ctx.fillText(tripLabel, cp.x, cp.y + 34);
+  }
+
+  private drawCarSprite(x: number, y: number): boolean {
+    const img = this.carSprite;
+    if (!img || !img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) return false;
+    try {
+      // Fit the longest side to ~44px, keep aspect, draw centered + upright.
+      const target = 44;
+      const scale = target / Math.max(img.naturalWidth, img.naturalHeight);
+      const w = Math.max(1, img.naturalWidth * scale);
+      const h = Math.max(1, img.naturalHeight * scale);
+      const { ctx } = this;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = 6;
+      ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+      ctx.restore();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private drawCar(x: number, y: number, heading: number, dark: boolean): void {

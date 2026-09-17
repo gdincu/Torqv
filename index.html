@@ -90,6 +90,23 @@
           </div>
           <p id="rec-status" class="hint">Recording captures the live playback in real time (WebM/MP4 depending on browser).</p>
 
+          <h2>Car marker</h2>
+          <div class="row">
+            <span>Icon (PNG)</span>
+            <div class="btn-group">
+              <label class="btn ghost file-btn">
+                Upload
+                <input id="car-input" type="file" accept=".png,image/png" hidden />
+              </label>
+              <button id="btn-car-reset" class="btn ghost">Default</button>
+            </div>
+          </div>
+          <div class="row">
+            <span>Preview</span>
+            <img id="car-preview" class="car-preview" src="./car-default.png" alt="Car icon preview" width="44" height="44" />
+          </div>
+          <p class="hint">Transparent PNG is drawn upright (no rotation). Custom icons stay in this browser only.</p>
+
           <h2>Trip</h2>
           <dl class="stats">
             <div><dt>Source</dt><dd id="stat-src">—</dd></div>
@@ -98,7 +115,8 @@
             <div><dt>Distance</dt><dd id="stat-dist">—</dd></div>
             <div><dt>Drive / Idle</dt><dd id="stat-split">—</dd></div>
           </dl>
-          <p class="hint">Files stay on your device — nothing is uploaded. Map: &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors, &copy; <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a>.</p>
+          <p class="hint">Files stay on your device — nothing is uploaded. Map: &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors, styles by <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a>.</p>
+          <p id="install-hint" class="hint" hidden></p>
           <p id="warn" class="warn-text" hidden></p>
         </aside>
       </main>

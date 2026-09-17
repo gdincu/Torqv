@@ -1,5 +1,5 @@
 import maplibregl from 'maplibre-gl';
-import { VECTOR_STYLE_URL, rasterOsmStyle } from './style';
+import { DARK_STYLE_URL, LIGHT_STYLE_URL, rasterOsmStyle } from './style';
 
 /**
  * Thin wrapper around a MapLibre GL map (GPU basemap).
@@ -13,12 +13,13 @@ export class MapAdapter {
   readonly map: maplibregl.Map;
   follow = true;
   private fellBack = false;
+  private dark = false;
   private lastPan = 0;
 
   constructor(container: HTMLElement, center: [number, number], zoom: number) {
     this.map = new maplibregl.Map({
       container,
-      style: VECTOR_STYLE_URL,
+      style: LIGHT_STYLE_URL,
       center,
       zoom,
       attributionControl: false,
@@ -39,9 +40,20 @@ export class MapAdapter {
   }
 
   setDark(on: boolean): void {
-    // The demo vector style has no dark variant; a CSS invert keeps one
-    // code path for both styles. `hue-rotate` preserves map hues.
-    this.map.getContainer().classList.toggle('map-dark', on);
+    this.dark = on;
+    if (this.fellBack) {
+      // Raster fallback has no dark variant; a CSS invert keeps one code
+      // path. `hue-rotate` preserves map hues.
+      this.map.getContainer().classList.toggle('map-dark', on);
+      return;
+    }
+    this.map.getContainer().classList.remove('map-dark');
+    try {
+      this.map.setStyle(on ? DARK_STYLE_URL : LIGHT_STYLE_URL);
+    } catch {
+      // setStyle can throw if a transition is already in flight — the
+      // map keeps the current style, which is fine.
+    }
   }
 
   jumpTo(lon: number, lat: number, zoom: number): void {

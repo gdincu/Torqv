@@ -14,6 +14,19 @@ import { registerSW, wireInstall } from './pwa';
 const DEFAULT_CENTER: [number, number] = [23.7786, 44.2558];
 const DEFAULT_ZOOM = 12;
 
+/** Bundled top-down car marker (transparent, drawn upright). */
+const DEFAULT_CAR_SRC = './car-default.png';
+const CAR_STORAGE_KEY = 'tqv-car-icon';
+
+function loadCarImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Could not load car icon.`));
+    img.src = src;
+  });
+}
+
 const $ = <T extends HTMLElement>(id: string, _guard?: new () => T): T => {
   const el = document.getElementById(id);
   if (!el) throw new Error(`Missing #${id}`);
@@ -148,13 +161,60 @@ function frame(): void {
 
 function main(): void {
   registerSW();
-  wireInstall($('btn-install'));
+  wireInstall($('btn-install'), $('install-hint'));
 
   adapter = new MapAdapter($('map'), DEFAULT_CENTER, DEFAULT_ZOOM);
   renderer = new TrackRenderer($('overlay') as HTMLCanvasElement);
   renderer.resize();
   window.addEventListener('resize', () => renderer.resize());
   adapter.map.on('move', () => renderer.resize());
+
+  // Car marker: bundled default, or a custom transparent PNG from this
+  // browser (localStorage). Sprite is drawn upright — no heading rotation.
+  const carPreview = $('car-preview') as HTMLImageElement;
+  const applyCarSrc = (src: string) => {
+    carPreview.src = src;
+    loadCarImage(src)
+      .then((img) => renderer.setCarSprite(img))
+      .catch(() => renderer.setCarSprite(null));
+  };
+  try {
+    applyCarSrc(localStorage.getItem(CAR_STORAGE_KEY) || DEFAULT_CAR_SRC);
+  } catch {
+    applyCarSrc(DEFAULT_CAR_SRC);
+  }
+  $('car-input').addEventListener('change', (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (file.type !== 'image/png') {
+      const warn = $('warn');
+      warn.hidden = false;
+      warn.textContent = `Car icon must be a transparent PNG (got ${file.type || file.name}).`;
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      if (!dataUrl.startsWith('data:image/png')) return;
+      applyCarSrc(dataUrl);
+      try {
+        localStorage.setItem(CAR_STORAGE_KEY, dataUrl);
+      } catch {
+        /* quota exceeded — icon works for this session only */
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+  $('btn-car-reset').addEventListener('click', () => {
+    try {
+      localStorage.removeItem(CAR_STORAGE_KEY);
+    } catch {
+      /* storage unavailable — just restore the default for now */
+    }
+    applyCarSrc(DEFAULT_CAR_SRC);
+  });
 
   // Playback clock.
   let last = performance.now();
@@ -197,6 +257,7 @@ function main(): void {
   });
   ($('chk-dark') as HTMLInputElement).addEventListener('change', (e) => {
     dark = (e.target as HTMLInputElement).checked;
+    adapter.setDark(dark);
   });
   ($('chk-info') as HTMLInputElement).addEventListener('change', (e) => {
     ($('osd') as HTMLElement).style.display = (e.target as HTMLInputElement).checked ? '' : 'none';

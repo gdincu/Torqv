@@ -140,6 +140,14 @@ html, body {
 .hint { font-size: 0.78rem; color: var(--muted); line-height: 1.45; }
 .hint a { color: var(--muted); }
 .warn-text { color: #ffb4b8; font-size: 0.82rem; white-space: pre-line; }
+.car-preview {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  background: #1c2436;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }

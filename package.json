@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "PWA rewrite of TorqueProVisualizer: GPU-accelerated Torque Pro log visualizer (phone + desktop).",
+  "description": "Torqv: installable Torque Pro log visualizer (phone + desktop).",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
