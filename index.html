@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0e13" />
+    <meta name="description" content="GPU-accelerated Torque Pro log visualizer. Runs on phone and desktop, installable as a PWA." />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png" />
+    <title>Torque Pro Visualizer (PWA)</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-dot" aria-hidden="true"></span>
+          <div>
+            <h1>Torque Pro Visualizer</h1>
+            <p class="subtitle">PWA rewrite &mdash; phone + desktop, GPU map</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button id="btn-install" class="btn ghost" hidden>Install</button>
+          <button id="btn-demo" class="btn ghost">Load demo</button>
+          <label class="btn primary file-btn">
+            Open log
+            <input id="file-input" type="file" accept=".json,.txt,application/json" hidden />
+          </label>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="map-wrap">
+          <div id="map" class="map" aria-label="Trip map"></div>
+          <canvas id="overlay" class="overlay" aria-hidden="true"></canvas>
+
+          <div id="osd" class="osd">
+            <span id="osd-speed" class="osd-speed">000 km/h</span>
+            <span id="osd-inst">Instant: 00.0%</span>
+            <span id="osd-fuel">Fuel: 000%</span>
+            <span id="osd-temp">Temp: 000&deg;C</span>
+            <span id="osd-drv">Drv: 00h00m</span>
+            <span id="osd-idle">Idle: 00h00m</span>
+            <span id="osd-date">----/--/-- --:--</span>
+          </div>
+
+          <div class="transport">
+            <button id="btn-play" class="btn primary" disabled>&#9654; Play</button>
+            <input id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Trip position" disabled />
+            <span id="time-label" class="time-label">0:00 / 0:00</span>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <h2>Playback</h2>
+          <label class="row">
+            <span>Speedup</span>
+            <select id="sel-speed">
+              <option value="1">1&times;</option>
+              <option value="2">2&times;</option>
+              <option value="4">4&times;</option>
+              <option value="7" selected>7&times; (legacy default)</option>
+              <option value="10">10&times;</option>
+              <option value="30">30&times;</option>
+            </select>
+          </label>
+          <div class="row">
+            <span>Zoom</span>
+            <div class="btn-group">
+              <button id="btn-zout" class="btn">−</button>
+              <button id="btn-zin" class="btn">+</button>
+            </div>
+          </div>
+          <label class="row check"><input id="chk-follow" type="checkbox" checked /> <span>Follow car (smooth pan)</span></label>
+          <label class="row check"><input id="chk-dark" type="checkbox" /> <span>Dark map</span></label>
+          <label class="row check"><input id="chk-info" type="checkbox" checked /> <span>Show OSD bar</span></label>
+
+          <h2>Export</h2>
+          <label class="row">
+            <span>Resolution</span>
+            <select id="sel-res">
+              <option value="1280x720" selected>1280&times;720</option>
+              <option value="1920x1080">1920&times;1080</option>
+            </select>
+          </label>
+          <div class="row">
+            <button id="btn-rec" class="btn warn" disabled>&#9679; Record</button>
+            <a id="dl-link" class="btn ghost" hidden>Download</a>
+          </div>
+          <p id="rec-status" class="hint">Recording captures the live playback in real time (WebM/MP4 depending on browser).</p>
+
+          <h2>Trip</h2>
+          <dl class="stats">
+            <div><dt>Source</dt><dd id="stat-src">—</dd></div>
+            <div><dt>Points</dt><dd id="stat-pts">—</dd></div>
+            <div><dt>Duration</dt><dd id="stat-dur">—</dd></div>
+            <div><dt>Distance</dt><dd id="stat-dist">—</dd></div>
+            <div><dt>Drive / Idle</dt><dd id="stat-split">—</dd></div>
+          </dl>
+          <p class="hint">Files stay on your device — nothing is uploaded. Map: &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors, &copy; <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a>.</p>
+          <p id="warn" class="warn-text" hidden></p>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "torque-pro-visualizer-pwa",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "PWA rewrite of TorqueProVisualizer: GPU-accelerated Torque Pro log visualizer (phone + desktop).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "node scripts/test.mjs",
+    "gen:icons": "node scripts/gen-icons.mjs",
+    "gen:sample": "node scripts/gen-sample.mjs"
+  },
+  "dependencies": {
+    "maplibre-gl": "^4.7.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0"
+  }
+}
