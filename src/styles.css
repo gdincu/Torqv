@@ -100,7 +100,10 @@ html, body {
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
-.osd-speed { font-weight: 800; font-size: 0.95rem; color: #fff; }
+.osd-speed { font-weight: 800; font-size: 0.95rem; color: #fff; flex-grow: 1.5; }
+/* Fixed equal slots: every metric gets the same share of the bar and the
+   row always stretches full-width (wraps to filled rows on narrow screens). */
+.osd > span { flex: 1 1 110px; text-align: center; white-space: nowrap; }
 
 .transport {
   position: absolute;

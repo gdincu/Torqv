@@ -173,6 +173,14 @@ function main(): void {
   // browser (localStorage). Sprite is drawn upright — no heading rotation.
   const carPreview = $('car-preview') as HTMLImageElement;
   const applyCarSrc = (src: string) => {
+    // Hide the preview box while the file is missing (e.g. before
+    // public/car-default.png is added) instead of showing broken-image.
+    carPreview.onerror = () => {
+      carPreview.style.visibility = 'hidden';
+    };
+    carPreview.onload = () => {
+      carPreview.style.visibility = '';
+    };
     carPreview.src = src;
     loadCarImage(src)
       .then((img) => renderer.setCarSprite(img))

@@ -13,7 +13,9 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(VERSION)
-      .then((c) => c.addAll(APP_SHELL))
+      // One missing file (e.g. car-default.png not added yet) must not
+      // fail the whole precache — cache what's there, activate anyway.
+      .then((c) => Promise.allSettled(APP_SHELL.map((u) => c.add(u))))
       .then(() => self.skipWaiting()),
   );
 });

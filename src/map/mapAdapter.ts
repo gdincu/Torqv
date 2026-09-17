@@ -23,6 +23,11 @@ export class MapAdapter {
       center,
       zoom,
       attributionControl: false,
+      // Required for video export: the recorder reads the map canvas via
+      // drawImage from its own rAF loop. Without this the GL drawing buffer
+      // is cleared after compositing, so recordings capture a black
+      // background with only occasional (flickering) map frames.
+      preserveDrawingBuffer: true,
     });
     this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), 'top-right');
     this.map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
@@ -31,6 +36,17 @@ export class MapAdapter {
       if (!this.fellBack) {
         this.fellBack = true;
         this.map.setStyle(rasterOsmStyle());
+      }
+    });
+    // The Liberty style's 3D-buildings layer evaluates per-feature heights
+    // that are absent on some tiles, which logs worker noise like
+    // "Expected value to be of type number, but found null instead".
+    // Extrusions are invisible in our flat 2D view anyway, so drop it.
+    this.map.on('style.load', () => {
+      try {
+        if (this.map.getLayer('building-3d')) this.map.removeLayer('building-3d');
+      } catch {
+        /* style not ready — harmless, the next load retries */
       }
     });
   }
